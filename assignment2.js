@@ -163,12 +163,22 @@ function draw()
 	var farClip = 20.0;
 
 	// perspective projection
-	var projectionMatrix = perspectiveMatrix(
-		fovRadians,
-		aspectRatio,
-		nearClip,
-		farClip,
-	);
+	var projectionMatrix;
+	if (document.querySelector("#projection").value === 'orthographic') {
+		const left = -1.0
+		const right = 1.0
+		const bottom = -1.0
+		const top = 1.0
+
+		projectionMatrix = orthographicMatrix(left, right, bottom, top, nearClip, farClip);
+	} else {
+		projectionMatrix = perspectiveMatrix(
+			fovRadians,
+			aspectRatio,
+			nearClip,
+			farClip,
+		);
+	}
 
 	// eye and target
 	var eye = [0, 5, 5];
@@ -184,6 +194,9 @@ function draw()
 	const zoom = zoomSlider.value / 10 + 1
 	var scaleMat = scaleMatrix(zoom ,zoom, zoom);
 
+	const height = heightSlider.value
+	var heightScaleMat = scaleMatrix(1, height, 1);
+
 	const xtranslate = xtranslateSlider.value / 10
 	var xtransMat = translateMatrix(xtranslate, 0, 0);
 
@@ -195,6 +208,7 @@ function draw()
 	modelMatrix = multiplyMatrices(rotY, modelMatrix);
 	modelMatrix = multiplyMatrices(rotZ, modelMatrix);
 	modelMatrix = multiplyMatrices(scaleMat, modelMatrix);
+	modelMatrix = multiplyMatrices(heightScaleMat, modelMatrix);
 	modelMatrix = multiplyMatrices(xtransMat, modelMatrix);
 	modelMatrix = multiplyMatrices(ytransMat, modelMatrix);
 
