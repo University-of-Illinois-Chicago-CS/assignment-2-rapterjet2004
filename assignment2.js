@@ -9,50 +9,62 @@ var uniformModelViewLoc = null;
 var uniformProjectionLoc = null;
 var heightmapData = null;
 
-function processImage(img)
-{
-	// draw the image into an off-screen canvas
-	var off = document.createElement('canvas');
-	
-	var sw = img.width, sh = img.height;
-	off.width = sw; off.height = sh;
-	
-	var ctx = off.getContext('2d');
-	ctx.drawImage(img, 0, 0, sw, sh);
-	
-	// read back the image pixel data
-	var imgd = ctx.getImageData(0,0,sw,sh);
-	var px = imgd.data;
-	
-	// create a an array will hold the height value
-	var heightArray = new Float32Array(sw * sh);
-	
-	// loop through the image, rows then columns
-	for (var y=0;y<sh;y++) 
-	{
-		for (var x=0;x<sw;x++) 
-		{
-			// offset in the image buffer
-			var i = (y*sw + x)*4;
-			
-			// read the RGB pixel value
-			var r = px[i+0], g = px[i+1], b = px[i+2];
-			
-			// convert to greyscale value between 0 and 1
-			var lum = (0.2126*r + 0.7152*g + 0.0722*b) / 255.0;
+const xSlider = document.getElementById('xrotation');
+const ySlider = document.getElementById('yrotation');
+const zSlider = document.getElementById('zrotation');
+const zoomSlider = document.getElementById('zoom');
+const heightSlider = document.getElementById('height');
 
-			// store in array
-			heightArray[y*sw + x] = lum;
-		}
-	}
+var deltaX = 0
+var deltaY = 0
 
-	return {
-		data: heightArray,
-		width: sw,
-		height: sw
-	};
+
+
+function processImage(img) {
+    // draw the image into an off-screen canvas
+    var off = document.createElement('canvas');
+    
+    var sw = img.width, sh = img.height;
+    off.width = sw; off.height = sh;
+    
+    var ctx = off.getContext('2d');
+    ctx.drawImage(img, 0, 0, sw, sh);
+    
+    // read back the image pixel data
+    var imgd = ctx.getImageData(0,0,sw,sh);
+    var px = imgd.data;
+    
+    // create a an array will hold the height value
+    var heightArray = new Float32Array(sw * sh * 3);
+
+    // loop through the image, rows then columns
+    for (var y = 0; y < sh; y++) {
+        for (var x = 0; x < sw; x++) {
+            // offset in the image buffer
+            var i = (y * sw + x) * 4;
+            
+            var r = px[i+0], g = px[i+1], b = px[i+2];
+            
+            // convert to greyscale value between 0 and 1
+            var lum = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0;
+
+            var baseIndex = (y * sw + x) * 3;
+
+            // Map pixel x-coordinate [0, sw-1] to [-1, 1]
+            heightArray[baseIndex]     = (x / (sw - 1)) * 2.0 - 1.0;
+            // Map pixel y-coordinate [0, sh-1] to [-1, 1]
+            heightArray[baseIndex + 1] = (y / (sh - 1)) * 2.0 - 1.0;
+            // Height (lum) is already [0, 1], which is a perfect normalized range.
+            heightArray[baseIndex + 2] = lum;
+        }
+    }
+
+    return {
+        data: heightArray,
+        width: sw,
+        height: sh
+    };
 }
-
 
 window.loadImageFile = function(event)
 {
@@ -70,15 +82,51 @@ window.loadImageFile = function(event)
 		{
 			// heightmapData is globally defined
 			heightmapData = processImage(img);
-			
-			/*
-				TODO: using the data in heightmapData, create a triangle mesh
-					heightmapData.data: array holding the actual data, note that 
-					this is a single dimensional array the stores 2D data in row-major order
+            var vertices = heightmapData.data;
+            var sw = heightmapData.width;
+            var sh = heightmapData.height;
+            
+            var positions = [];
 
-					heightmapData.width: width of map (number of columns)
-					heightmapData.height: height of the map (number of rows)
-			*/
+            for (var y = 0; y < sh - 1; y++) {
+                for (var x = 0; x < sw - 1; x++) {
+                    // Indices of the four vertices forming a quad
+                    var v1_idx = (y * sw + x) * 3;
+                    var v2_idx = (y * sw + (x + 1)) * 3;
+                    var v3_idx = ((y + 1) * sw + x) * 3;
+                    var v4_idx = ((y + 1) * sw + (x + 1)) * 3;
+
+                    // First triangle of the quad
+                    positions.push(vertices[v1_idx], vertices[v1_idx+1], vertices[v1_idx+2]);
+                    positions.push(vertices[v2_idx], vertices[v2_idx+1], vertices[v2_idx+2]);
+                    positions.push(vertices[v3_idx], vertices[v3_idx+1], vertices[v3_idx+2]);
+
+                    // Second triangle of the quad
+                    positions.push(vertices[v2_idx], vertices[v2_idx+1], vertices[v2_idx+2]);
+                    positions.push(vertices[v4_idx], vertices[v4_idx+1], vertices[v4_idx+2]);
+                    positions.push(vertices[v3_idx], vertices[v3_idx+1], vertices[v3_idx+2]);
+                }
+            }
+            
+            vertexCount = positions.length / 3;     // vertexCount is global variable used by draw()
+
+            // create buffers to put in box
+            var posVertices = new Float32Array(positions);
+            var posBuffer = createBuffer(gl, gl.ARRAY_BUFFER, posVertices);
+
+            // attributes (per vertex)
+            var posAttribLoc = gl.getAttribLocation(program, "position");
+
+            vao = createVAO(gl, 
+                // positions
+                posAttribLoc, posBuffer, 
+
+                // normals (unused in this assignments)
+                null, null, 
+
+                // colors (not needed--computed by shader)
+                null, null
+            );
 			console.log('loaded image: ' + heightmapData.width + ' x ' + heightmapData.height);
 
 		};
@@ -116,12 +164,22 @@ function draw()
 	var farClip = 20.0;
 
 	// perspective projection
-	var projectionMatrix = perspectiveMatrix(
-		fovRadians,
-		aspectRatio,
-		nearClip,
-		farClip,
-	);
+	var projectionMatrix;
+	if (document.querySelector("#projection").value === 'orthographic') {
+		const left = -1.0
+		const right = 1.0
+		const bottom = -1.0
+		const top = 1.0
+
+		projectionMatrix = orthographicMatrix(left, right, bottom, top, nearClip, farClip);
+	} else {
+		projectionMatrix = perspectiveMatrix(
+			fovRadians,
+			aspectRatio,
+			nearClip,
+			farClip,
+		);
+	}
 
 	// eye and target
 	var eye = [0, 5, 5];
@@ -129,7 +187,31 @@ function draw()
 
 	var modelMatrix = identityMatrix();
 
-	// TODO: set up transformations to the model
+	var initXRot = rotateXMatrix(90 * Math.PI / 180)
+	var rotX = rotateXMatrix(xSlider.value * Math.PI / 180)
+	var rotY = rotateYMatrix(ySlider.value * Math.PI / 180)
+	var rotZ = rotateZMatrix(zSlider.value * Math.PI / 180)
+
+	const zoom = zoomSlider.value / 10 + 1
+	var scaleMat = scaleMatrix(zoom ,zoom, zoom);
+
+	const height = heightSlider.value
+	var heightScaleMat = scaleMatrix(1, height, 1);
+
+	const xtranslate = -deltaX / 20
+	var xtransMat = translateMatrix(xtranslate, 0, 0);
+
+	const ytranslate = deltaY / 20
+	var ytransMat = translateMatrix(0, ytranslate, 0);
+	
+	modelMatrix = multiplyMatrices(initXRot, modelMatrix);
+	modelMatrix = multiplyMatrices(rotX, modelMatrix);
+	modelMatrix = multiplyMatrices(rotY, modelMatrix);
+	modelMatrix = multiplyMatrices(rotZ, modelMatrix);
+	modelMatrix = multiplyMatrices(scaleMat, modelMatrix);
+	modelMatrix = multiplyMatrices(heightScaleMat, modelMatrix);
+	modelMatrix = multiplyMatrices(xtransMat, modelMatrix);
+	modelMatrix = multiplyMatrices(ytransMat, modelMatrix);
 
 	// setup viewing matrix
 	var eyeToTarget = subtract(target, eye);
@@ -137,7 +219,6 @@ function draw()
 
 	// model-view Matrix = view * model
 	var modelviewMatrix = multiplyMatrices(viewMatrix, modelMatrix);
-
 
 	// enable depth testing
 	gl.enable(gl.DEPTH_TEST);
@@ -269,8 +350,8 @@ function addMouseCallback(canvas)
 		var currentX = e.offsetX;
 		var currentY = e.offsetY;
 
-		var deltaX = currentX - startX;
-		var deltaY = currentY - startY;
+		deltaX = currentX - startX;
+		deltaY = currentY - startY;
 		console.log('mouse drag by: ' + deltaX + ', ' + deltaY);
 
 		// implement dragging logic
