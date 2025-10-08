@@ -13,9 +13,10 @@ const xSlider = document.getElementById('xrotation');
 const ySlider = document.getElementById('yrotation');
 const zSlider = document.getElementById('zrotation');
 const zoomSlider = document.getElementById('zoom');
-const xtranslateSlider = document.getElementById('xtranslate');
-const ytranslateSlider = document.getElementById('ytranslate');
 const heightSlider = document.getElementById('height');
+
+var deltaX = 0
+var deltaY = 0
 
 
 
@@ -197,10 +198,10 @@ function draw()
 	const height = heightSlider.value
 	var heightScaleMat = scaleMatrix(1, height, 1);
 
-	const xtranslate = xtranslateSlider.value / 10
+	const xtranslate = -deltaX / 20
 	var xtransMat = translateMatrix(xtranslate, 0, 0);
 
-	const ytranslate = ytranslateSlider.value / 10
+	const ytranslate = deltaY / 20
 	var ytransMat = translateMatrix(0, ytranslate, 0);
 	
 	modelMatrix = multiplyMatrices(initXRot, modelMatrix);
@@ -349,8 +350,8 @@ function addMouseCallback(canvas)
 		var currentX = e.offsetX;
 		var currentY = e.offsetY;
 
-		var deltaX = currentX - startX;
-		var deltaY = currentY - startY;
+		deltaX = currentX - startX;
+		deltaY = currentY - startY;
 		console.log('mouse drag by: ' + deltaX + ', ' + deltaY);
 
 		// implement dragging logic
