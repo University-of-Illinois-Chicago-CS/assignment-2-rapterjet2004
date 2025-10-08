@@ -9,6 +9,13 @@ var uniformModelViewLoc = null;
 var uniformProjectionLoc = null;
 var heightmapData = null;
 
+const xSlider = document.getElementById('xrotation');
+const ySlider = document.getElementById('yrotation');
+const zSlider = document.getElementById('zrotation');
+const zoomSlider = document.getElementById('zoom');
+const xtranslateSlider = document.getElementById('xtranslate');
+const ytranslateSlider = document.getElementById('ytranslate');
+
 function processImage(img)
 {
 	// draw the image into an off-screen canvas
@@ -52,7 +59,6 @@ function processImage(img)
 		height: sw
 	};
 }
-
 
 window.loadImageFile = function(event)
 {
@@ -129,7 +135,25 @@ function draw()
 
 	var modelMatrix = identityMatrix();
 
-	// TODO: set up transformations to the model
+	var rotX = rotateXMatrix(xSlider.value * Math.PI / 180)
+	var rotY = rotateYMatrix(ySlider.value * Math.PI / 180)
+	var rotZ = rotateZMatrix(zSlider.value * Math.PI / 180)
+
+	const zoom = zoomSlider.value / 100 + 1
+	var scaleMat = scaleMatrix(zoom ,zoom, zoom);
+
+	const xtranslate = xtranslateSlider.value / 10
+	var xtransMat = translateMatrix(xtranslate, 0, 0);
+
+	const ytranslate = ytranslateSlider.value / 10
+	var ytransMat = translateMatrix(0, ytranslate, 0);
+	
+	modelMatrix = multiplyMatrices(rotX, modelMatrix);
+	modelMatrix = multiplyMatrices(rotY, modelMatrix);
+	modelMatrix = multiplyMatrices(rotZ, modelMatrix);
+	modelMatrix = multiplyMatrices(scaleMat, modelMatrix);
+	modelMatrix = multiplyMatrices(xtransMat, modelMatrix);
+	modelMatrix = multiplyMatrices(ytransMat, modelMatrix);
 
 	// setup viewing matrix
 	var eyeToTarget = subtract(target, eye);
@@ -137,7 +161,6 @@ function draw()
 
 	// model-view Matrix = view * model
 	var modelviewMatrix = multiplyMatrices(viewMatrix, modelMatrix);
-
 
 	// enable depth testing
 	gl.enable(gl.DEPTH_TEST);
